@@ -1,5 +1,5 @@
 import express from "express";
-import notFound from "./middlewares/notFound.js";
+import notFound from "./middlewares/not-found.js";
 import errorHandler from "./middlewares/error-handler.js";
 import configs from "./configs/index.js";
 import logger from "./configs/logger.js";
