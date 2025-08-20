@@ -16,9 +16,11 @@ if (fs.existsSync(envPath) && !envFile.includes(".example")) {
 export default {
     env: process.env.NODE_ENV || "development",
     port: process.env.APP_PORT || 3001,
+
     log: {
         level: process.env.LOG_LEVEL || "info",
         file: process.env.LOG_FILE || "logs/app.log",
         database: process.env.LOG_DB || null,
+        transport: process.env.LOG_TRANSPORTS || "console",
     },
 };
