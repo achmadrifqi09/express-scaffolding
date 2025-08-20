@@ -1,9 +1,22 @@
 import winston, { format, transports } from "winston";
-import config from "./index.js";
+import env from "./env.js";
+import moment from "moment-timezone";
 
 const logFormat = format.printf(({ timestamp, level, message, ...meta }) => {
     const metaStr = Object.keys(meta).length ? JSON.stringify(meta) : "";
-    return `${timestamp} [${level.toUpperCase()}]: ${message} ${metaStr}`;
+    return `[${level} ${timestamp}]: ${message} ${metaStr}`;
+});
+
+const filterServerError = format((info) => {
+    let status = info.statusCode || info.original?.statusCode;
+    if (info.level === "error" && status >= 500) {
+        return info;
+    }
+    return false;
+});
+
+const timestampLocal = format.timestamp({
+    format: () => moment().tz(env.timezone).format("YYYY-MM-DD HH:mm:ss"),
 });
 
 const loggerTransports = [
@@ -15,19 +28,25 @@ const loggerTransports = [
         ),
     }),
     new transports.File({
-        filename: config.log.file,
-        format: format.combine(format.timestamp(), logFormat),
+        level: "error",
+        filename: env.log.file,
+        format: format.combine(filterServerError(), timestampLocal, logFormat),
     }),
 ];
 
-if (config.log.database) {
+if (env.log.database && env.log.transport.includes("database")) {
     const { MongoDB } = await import("winston-mongodb");
     loggerTransports.push(
         new MongoDB({
-            level: config.log.level,
-            db: config.log.database,
+            level: "error",
+            db: env.log.database,
             options: { useUnifiedTopology: true },
-            collection: "logs",
+            collection: "log_errors",
+            format: format.combine(
+                filterServerError(),
+                timestampLocal,
+                logFormat
+            ),
         })
     );
 }
@@ -35,26 +54,11 @@ if (config.log.database) {
 const logger = winston.createLogger({
     level: "info",
     format: winston.format.combine(
-        winston.format.timestamp(),
+        timestampLocal,
         winston.format.errors({ stack: true }),
-        winston.format.splat(),
-        winston.format.printf(({ timestamp, level, message, ...meta }) => {
-            const metaStr = Object.keys(meta).length
-                ? JSON.stringify(meta)
-                : "";
-            return `${timestamp} [${level.toUpperCase()}]: ${message} ${metaStr}`;
-        })
+        winston.format.splat()
     ),
-    transports: [
-        new winston.transports.Console({
-            format: winston.format.combine(
-                winston.format.colorize(),
-                winston.format.printf((info) => info.message),
-                winston.format.simple()
-            ),
-            stderrLevels: ["error"],
-        }),
-    ],
+    transports: loggerTransports,
 });
 
 export default logger;
